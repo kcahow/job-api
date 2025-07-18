@@ -1,0 +1,66 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: postgres_db
+    restart: always
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: ksbns
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: password!23
+      TZ: "America/Denver"
+    volumes:
+      - local_pgdata:/var/lib/postgresql/data
+      # - ./docker-servers.json:/pgadmin4/servers.json
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "admin"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+
+  pgadmin:
+    image: elestio/pgadmin:latest
+    container_name: pgadmin4_container
+    restart: always
+    ports:
+      - "8888:80"
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@test.com
+      PGADMIN_DEFAULT_PASSWORD: password!23
+      PGADMIN_CONFIG_SERVER_MODE: "False"
+      PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: "False"
+    depends_on:
+      - postgres
+    volumes:
+      - pgadmin-data:/var/lib/pgadmin
+      - ./servers.json:/pgadmin4/servers.json
+    entrypoint:
+      - "/bin/sh"
+      - "-c"
+      - "/bin/echo 'postgres:5432:*:admin:password!23' > /tmp/pgpassfile && chmod 600 /tmp/pgpassfile && /entrypoint.sh"
+
+
+  flyway:
+    image: flyway/flyway:11.8-alpine
+    container_name: flyway_db_migrations
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./flyway/sql:/flyway/sql
+    environment:
+      FLYWAY_URL: jdbc:postgresql://postgres:5432/ksbns
+      FLYWAY_USER: admin
+      FLYWAY_PASSWORD: password!23
+      FLYWAY_LOCATIONS: filesystem:/flyway/sql
+      FLYWAY_BASELINE_ON_MIGRATE: "true"
+      FLYWAY_CONNECT_RETRIES: 10
+    command: migrate
+
+
+
+volumes:
+  local_pgdata:
+  pgadmin-data:
